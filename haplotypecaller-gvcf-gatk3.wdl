@@ -1,6 +1,6 @@
-## Copyright Broad Institute, 2017
+## Copyright Broad Institute, 2018
 ## 
-## This WDL workflow runs HaplotypeCaller in GVCF mode on a single sample according to 
+## This WDL workflow runs HaplotypeCaller in VCF mode on a single sample according to 
 ## the GATK Best Practices (June 2016) scattered across intervals.
 ##
 ## Requirements/expectations :
@@ -8,10 +8,10 @@
 ## - Set of variant calling intervals lists for the scatter, provided in a file
 ##
 ## Outputs :
-## - One GVCF file and its index
+## - One VCF file and its index
 ##
 ## Cromwell version support 
-## - Successfully tested on v28
+## - Successfully tested on v33
 ## - Does not work on versions < v23 due to output syntax
 ##
 ## Runtime parameters are optimized for Broad's Google Cloud Platform implementation.
@@ -24,7 +24,7 @@
 ## for detailed licensing information pertaining to the included programs.
 
 # WORKFLOW DEFINITION 
-workflow HaplotypeCallerGvcf_GATK3 {
+workflow HaplotypeCallerVcf_GATK3 {
   File input_bam
   File input_bam_index
   File ref_dict
@@ -34,10 +34,32 @@ workflow HaplotypeCallerGvcf_GATK3 {
   
   Array[File] scattered_calling_intervals = read_lines(scattered_calling_intervals_list)
 
+  Boolean? make_gvcf
+  Boolean making_gvcf = select_first([make_gvcf,false])
+
   String sample_basename = basename(input_bam, ".bam")
   
-  String gvcf_name = sample_basename + ".g.vcf.gz"
-  String gvcf_index = sample_basename + ".g.vcf.gz.tbi"
+  String vcf_basename = sample_basename 
+  String vcf_index = sample_basename 
+  
+  String output_suffix = if making_gvcf then ".g.vcf.gz" else ".vcf.gz"
+  String output_filename = vcf_basename + output_suffix
+
+  #Docker
+  String? gatk_docker
+  String gatk_image = select_first([gatk_docker, "broadinstitute/gatk3:3.8-1"])
+  String? gatk_path
+  String gatk_path2launch = select_first([gatk_path, "/usr/"])
+  String? picard_docker
+  String picard_image = select_first([picard_docker, "broadinstitute/genomes-in-the-cloud:2.3.0-1501082129"])
+  String? picard_path
+  String picard_path2launch = select_first([picard_path, "/usr/gitc/"])
+
+  # We need disk to localize the sharded input and output due to the scatter for HaplotypeCaller.
+  # If we take the number we are scattering by and reduce by 20 we will have enough disk space
+  # to account for the fact that the data is quite uneven across the shards.
+  Int potential_hc_divisor = length(scattered_calling_intervals) - 20
+  Int hc_divisor = if potential_hc_divisor > 1 then potential_hc_divisor else 1
 
   # Call variants in parallel over grouped calling intervals
   scatter (interval_file in scattered_calling_intervals) {
@@ -48,27 +70,31 @@ workflow HaplotypeCallerGvcf_GATK3 {
         input_bam = input_bam,
         input_bam_index = input_bam_index,
         interval_list = interval_file,
-        gvcf_name = gvcf_name,
-        gvcf_index = gvcf_index,
+        output_filename = output_filename,
         ref_dict = ref_dict,
         ref_fasta = ref_fasta,
-        ref_fasta_index = ref_fasta_index
+        ref_fasta_index = ref_fasta_index,
+        hc_scatter = hc_divisor,
+        make_gvcf = making_gvcf,
+        docker = gatk_image,
+        gatk_path = gatk_path2launch
     }
   }
 
   # Merge per-interval GVCFs
   call MergeVCFs {
     input:
-      input_vcfs = HaplotypeCaller.output_gvcf,
-      input_vcfs_indices = HaplotypeCaller.output_gvcf_index,
-      vcf_name = gvcf_name,
-      vcf_index = gvcf_index
+      input_vcfs = HaplotypeCaller.output_vcf,
+      input_vcfs_indices = HaplotypeCaller.output_vcf_index,
+      output_filename = output_filename,
+      docker = picard_image,
+      picard_path = picard_path2launch
   }
 
   # Outputs that will be retained when execution is complete
   output {
-    File output_merged_gvcf = MergeVCFs.output_vcf
-    File output_merged_gvcf_index = MergeVCFs.output_vcf_index
+    File output_merged_vcf = MergeVCFs.output_vcf
+    File output_merged_vcf_index = MergeVCFs.output_vcf_index
   }
 }
 
@@ -78,8 +104,7 @@ workflow HaplotypeCallerGvcf_GATK3 {
 task HaplotypeCaller {
   File input_bam
   File input_bam_index
-  String gvcf_name
-  String gvcf_index
+  String output_filename
   File ref_dict
   File ref_fasta
   File ref_fasta_index
@@ -87,38 +112,48 @@ task HaplotypeCaller {
   Int? interval_padding
   Int? contamination
   Int? max_alt_alleles
+  Boolean make_gvcf
+  Int hc_scatter
 
-  Int preemptible_tries
-  Int disk_size
-  String mem_size
-
-  String docker_image
   String gatk_path
   String java_opt
 
+  # Runtime parameters
+  String docker
+  Int? mem_gb
+  Int? disk_space_gb
+  Boolean use_ssd = false
+  Int? preemptible_attempts
+
+  Int machine_mem_gb = select_first([mem_gb, 7])
+
+  Float ref_size = size(ref_fasta, "GB") + size(ref_fasta_index, "GB") + size(ref_dict, "GB")
+  Int disk_size = ceil(((size(input_bam, "GB") + 30) / hc_scatter) + ref_size) + 20
+
   command {
-    java ${java_opt} -jar ${gatk_path}GenomeAnalysisTk.jar \
+    java ${java_opt} -jar ${gatk_path}GenomeAnalysisTK.jar \
       -T HaplotypeCaller \
       -R ${ref_fasta} \
       -I ${input_bam} \
-      -o ${gvcf_name} \
+      -o ${output_filename} \
       -L ${interval_list} \
       -ip ${default=100 interval_padding} \
-      -contamination ${default=0 contamination} \
       --max_alternate_alleles ${default=3 max_alt_alleles} \
       --read_filter OverclippedRead \
-      -ERC GVCF 
+      -contamination ${default=0 contamination} \
+      ${true="-ERC GVCF -variant_index_type LINEAR -variant_index_parameter 128000" false="" make_gvcf}
   }
 
   runtime {
-    docker: docker_image
-    memory: mem_size 
-    disks: "local-disk " + disk_size + " HDD"
+    docker: docker
+    memory: machine_mem_gb + " GB"
+    disks: "local-disk " + select_first([disk_space_gb, disk_size]) + if use_ssd then " SSD" else " HDD"
+    preemptible: select_first([preemptible_attempts, 3])
   }
 
   output {
-    File output_gvcf = "${gvcf_name}"
-    File output_gvcf_index = "${gvcf_index}"
+    File output_vcf = "${output_filename}"
+    File output_vcf_index = "${output_filename}.tbi"
   }
 }
 
@@ -126,15 +161,14 @@ task HaplotypeCaller {
 task MergeVCFs {
   Array [File] input_vcfs
   Array [File] input_vcfs_indices
-  String vcf_name
-  String vcf_index
+  String output_filename
 
   Int compression_level
-  Int preemptible_tries
+  Int? preemptible_attempts
   Int disk_size
   String mem_size
 
-  String docker_image
+  String docker
   String picard_path
   String java_opt
 
@@ -142,18 +176,19 @@ task MergeVCFs {
     java -Dsamjdk.compression_level=${compression_level} ${java_opt} -jar ${picard_path}picard.jar \
       MergeVcfs \
       INPUT=${sep=' INPUT=' input_vcfs} \
-      OUTPUT=${vcf_name}
+      OUTPUT=${output_filename}
   }
 
   runtime {
-    docker: docker_image
+    docker: docker
     memory: mem_size
     disks: "local-disk " + disk_size + " HDD"
+    preemptible: select_first([preemptible_attempts, 3])
 }
 
   output {
-    File output_vcf = "${vcf_name}"
-    File output_vcf_index = "${vcf_index}"
+    File output_vcf = "${output_filename}"
+    File output_vcf_index = "${output_filename}.tbi"
   }
 }
 
