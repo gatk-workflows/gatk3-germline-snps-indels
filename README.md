@@ -1,9 +1,9 @@
 # gatk3-germline-snps-indels
 
 ### Purpose : 
-Workflows for germline short variant discovery with GATK3. 
+Workflow for germline short variant discovery with GATK3.
 
-### haplotypecaller-gvcf-gatk :
+### haplotypecaller-vcf-gatk :
 The haplotypecaller-vcf-gatk3 workflow runs HaplotypeCaller 
 from GATK3 in VCF mode on a single sample according to the GATK Best Practices (June 2016), 
 scattered across intervals.
@@ -25,3 +25,7 @@ Cromwell version support
 
 ### IMPORTANT NOTE : 
 - Runtime parameters are optimized for Broad's Google Cloud Platform implementation.
+- This repo only contains the HaplotypeCaller workflow which produces a VCF, a GVCF workflow has not been
+  made available. The availability of GVCF workflow will depend on whether or not there is strong user 
+  interest, let us on the gatk forum.
+- The HaplotypeCaller workflow can produce GVCF by setting the `make_gvcf` variable to `true`.

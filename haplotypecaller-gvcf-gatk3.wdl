@@ -24,7 +24,7 @@
 ## for detailed licensing information pertaining to the included programs.
 
 # WORKFLOW DEFINITION 
-workflow HaplotypeCallerVcf_GATK3 {
+workflow HaplotypeCallerGvcf_GATK3 {
   File input_bam
   File input_bam_index
   File ref_dict
@@ -46,14 +46,14 @@ workflow HaplotypeCallerVcf_GATK3 {
   String output_filename = vcf_basename + output_suffix
 
   #Docker
-  String? gatk_docker
-  String gatk_image = select_first([gatk_docker, "broadinstitute/gatk3:3.8-1"])
-  String? gatk_path
-  String gatk_path2launch = select_first([gatk_path, "/usr/"])
-  String? picard_docker
-  String picard_image = select_first([picard_docker, "broadinstitute/genomes-in-the-cloud:2.3.0-1501082129"])
-  String? picard_path
-  String picard_path2launch = select_first([picard_path, "/usr/gitc/"])
+  String? gatk_docker_override
+  String gatk_docker = select_first([gatk_docker_override, "broadinstitute/gatk3:3.8-1"])
+  String? gatk_path_override
+  String gatk_path = select_first([gatk_path_override, "/usr/"])
+  String? picard_docker_override
+  String picard_docker = select_first([picard_docker_override, "broadinstitute/genomes-in-the-cloud:2.3.0-1501082129"])
+  String? picard_path_override
+  String picard_path = select_first([picard_path_override, "/usr/gitc/"])
 
   # We need disk to localize the sharded input and output due to the scatter for HaplotypeCaller.
   # If we take the number we are scattering by and reduce by 20 we will have enough disk space
@@ -76,8 +76,8 @@ workflow HaplotypeCallerVcf_GATK3 {
         ref_fasta_index = ref_fasta_index,
         hc_scatter = hc_divisor,
         make_gvcf = making_gvcf,
-        docker = gatk_image,
-        gatk_path = gatk_path2launch
+        docker = gatk_docker,
+        gatk_path = gatk_path
     }
   }
 
@@ -85,16 +85,16 @@ workflow HaplotypeCallerVcf_GATK3 {
   call MergeVCFs {
     input:
       input_vcfs = HaplotypeCaller.output_vcf,
-      input_vcfs_indices = HaplotypeCaller.output_vcf_index,
+      input_vcfs_indexes = HaplotypeCaller.output_vcf_index,
       output_filename = output_filename,
-      docker = picard_image,
-      picard_path = picard_path2launch
+      docker = picard_docker,
+      picard_path = picard_path
   }
 
   # Outputs that will be retained when execution is complete
   output {
-    File output_merged_vcf = MergeVCFs.output_vcf
-    File output_merged_vcf_index = MergeVCFs.output_vcf_index
+    File output_vcf = MergeVCFs.output_vcf
+    File output_vcf_index = MergeVCFs.output_vcf_index
   }
 }
 
@@ -102,6 +102,8 @@ workflow HaplotypeCallerVcf_GATK3 {
 
 # HaplotypeCaller per-sample in GVCF mode
 task HaplotypeCaller {
+  
+  # Command Paramters
   File input_bam
   File input_bam_index
   String output_filename
@@ -120,12 +122,10 @@ task HaplotypeCaller {
 
   # Runtime parameters
   String docker
-  Int? mem_gb
+  Int? machine_mem_gb
   Int? disk_space_gb
   Boolean use_ssd = false
   Int? preemptible_attempts
-
-  Int machine_mem_gb = select_first([mem_gb, 7])
 
   Float ref_size = size(ref_fasta, "GB") + size(ref_fasta_index, "GB") + size(ref_dict, "GB")
   Int disk_size = ceil(((size(input_bam, "GB") + 30) / hc_scatter) + ref_size) + 20
@@ -146,7 +146,7 @@ task HaplotypeCaller {
 
   runtime {
     docker: docker
-    memory: machine_mem_gb + " GB"
+    memory: select_first([machine_mem_gb, 7]) + " GB"
     disks: "local-disk " + select_first([disk_space_gb, disk_size]) + if use_ssd then " SSD" else " HDD"
     preemptible: select_first([preemptible_attempts, 3])
   }
@@ -159,18 +159,23 @@ task HaplotypeCaller {
 
 # Merge GVCFs generated per-interval for the same sample
 task MergeVCFs {
+
+  # Command Paramters
   Array [File] input_vcfs
-  Array [File] input_vcfs_indices
+  Array [File] input_vcfs_indexes
   String output_filename
-
   Int compression_level
-  Int? preemptible_attempts
-  Int disk_size
-  String mem_size
-
-  String docker
   String picard_path
   String java_opt
+
+  # Runtime Paramters
+  String docker
+  Int? machine_mem_gb 
+  Int? disk_space_gb
+  Boolean use_ssd = false
+  Int? preemptible_attempts
+
+  Int disk_size = ceil(size(write_lines(input_vcfs)) + 30) 
 
   command {
     java -Dsamjdk.compression_level=${compression_level} ${java_opt} -jar ${picard_path}picard.jar \
@@ -181,8 +186,8 @@ task MergeVCFs {
 
   runtime {
     docker: docker
-    memory: mem_size
-    disks: "local-disk " + disk_size + " HDD"
+    memory: select_first([machine_mem_gb, 3]) + " GB"
+    disks: "local-disk " + select_first([disk_space_gb, disk_size]) + if use_ssd then " SSD" else " HDD"
     preemptible: select_first([preemptible_attempts, 3])
 }
 
