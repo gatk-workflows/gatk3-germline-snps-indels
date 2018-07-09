@@ -27,5 +27,5 @@ Cromwell version support
 - Runtime parameters are optimized for Broad's Google Cloud Platform implementation.
 - This repo only contains the HaplotypeCaller workflow which produces a VCF, a GVCF workflow has not been
   made available. The availability of GVCF workflow will depend on whether or not there is strong user 
-  interest, let us on the gatk forum.
+  interest, let us know on the gatk forum.
 - The HaplotypeCaller workflow can produce GVCF by setting the `make_gvcf` variable to `true`.
