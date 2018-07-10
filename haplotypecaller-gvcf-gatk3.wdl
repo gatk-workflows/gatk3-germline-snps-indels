@@ -46,12 +46,10 @@ workflow HaplotypeCallerGvcf_GATK3 {
   String output_filename = vcf_basename + output_suffix
 
   #Docker
-  String? gatk_docker_override
-  String gatk_docker = select_first([gatk_docker_override, "broadinstitute/gatk3:3.8-1"])
-  String? gatk_path_override
-  String gatk_path = select_first([gatk_path_override, "/usr/"])
+  String? gitc_docker_override
+  String gitc_docker = select_first([gitc_docker_override, "broadinstitute/genomes-in-the-cloud:2.3.1-1512499786"])
   String? picard_docker_override
-  String picard_docker = select_first([picard_docker_override, "broadinstitute/genomes-in-the-cloud:2.3.0-1501082129"])
+  String picard_docker = select_first([picard_docker_override, "broadinstitute/genomes-in-the-cloud:2.3.1-1512499786"])
   String? picard_path_override
   String picard_path = select_first([picard_path_override, "/usr/gitc/"])
 
@@ -76,8 +74,7 @@ workflow HaplotypeCallerGvcf_GATK3 {
         ref_fasta_index = ref_fasta_index,
         hc_scatter = hc_divisor,
         make_gvcf = making_gvcf,
-        docker = gatk_docker,
-        gatk_path = gatk_path
+        docker = gitc_docker,
     }
   }
 
@@ -111,14 +108,13 @@ task HaplotypeCaller {
   File ref_fasta
   File ref_fasta_index
   File interval_list
-  Int? interval_padding
   Int? contamination
   Int? max_alt_alleles
   Boolean make_gvcf
   Int hc_scatter
 
-  String gatk_path
-  String java_opt
+  String? java_opt
+  String java_option = select_first([java_opt,"-XX:GCTimeLimit=50 -XX:GCHeapFreeLimit=10 -Xms8000m"])
 
   # Runtime parameters
   String docker
@@ -131,17 +127,26 @@ task HaplotypeCaller {
   Int disk_size = ceil(((size(input_bam, "GB") + 30) / hc_scatter) + ref_size) + 20
 
   command {
-    java ${java_opt} -jar ${gatk_path}GenomeAnalysisTK.jar \
+
+    /usr/gitc/gatk4/gatk-launch --javaOptions "-Xms2g" \
+      PrintReads \
+      -I ${input_bam} \
+      --interval_padding 500 \
+      -L ${interval_list} \
+      -O local.sharded.bam \
+    && \
+    java ${java_option} \
+      -jar /usr/gitc/GATK35.jar \
       -T HaplotypeCaller \
       -R ${ref_fasta} \
-      -I ${input_bam} \
       -o ${output_filename} \
+      -I local.sharded.bam \
       -L ${interval_list} \
-      -ip ${default=100 interval_padding} \
       --max_alternate_alleles ${default=3 max_alt_alleles} \
-      --read_filter OverclippedRead \
       -contamination ${default=0 contamination} \
+      --read_filter OverclippedRead \
       ${true="-ERC GVCF -variant_index_type LINEAR -variant_index_parameter 128000" false="" make_gvcf}
+
   }
 
   runtime {
