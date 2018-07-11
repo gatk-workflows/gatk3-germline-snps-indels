@@ -35,7 +35,7 @@ workflow HaplotypeCallerGvcf_GATK3 {
   Array[File] scattered_calling_intervals = read_lines(scattered_calling_intervals_list)
 
   Boolean? make_gvcf
-  Boolean making_gvcf = select_first([make_gvcf,false])
+  Boolean making_gvcf = select_first([make_gvcf, false])
 
   String sample_basename = basename(input_bam, ".bam")
   
@@ -109,7 +109,6 @@ task HaplotypeCaller {
   File ref_fasta_index
   File interval_list
   Int? contamination
-  Int? max_alt_alleles
   Boolean make_gvcf
   Int hc_scatter
 
@@ -125,6 +124,11 @@ task HaplotypeCaller {
 
   Float ref_size = size(ref_fasta, "GB") + size(ref_fasta_index, "GB") + size(ref_dict, "GB")
   Int disk_size = ceil(((size(input_bam, "GB") + 30) / hc_scatter) + ref_size) + 20
+
+  # We use PringReads to add interval_padding 500 to make sure that HaplotypeCaller has context on both sides around
+  # the interval because the assembly uses them.
+  #
+  # This isn't needed with HaploypeCaller in  GATK4 because it can stream the required intervals directly from the cloud.
 
   command {
 
@@ -142,10 +146,10 @@ task HaplotypeCaller {
       -o ${output_filename} \
       -I local.sharded.bam \
       -L ${interval_list} \
-      --max_alternate_alleles ${default=3 max_alt_alleles} \
+      --max_alternate_alleles 3 \
       -contamination ${default=0 contamination} \
       --read_filter OverclippedRead \
-      ${true="-ERC GVCF -variant_index_type LINEAR -variant_index_parameter 128000" false="" make_gvcf}
+      ${true="-ERC GVCF" false="" make_gvcf}
 
   }
 

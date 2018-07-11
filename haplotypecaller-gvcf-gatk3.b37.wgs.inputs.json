@@ -14,7 +14,6 @@
 
   "##_COMMENT4": "MISC PARAMETERS", 
   "#HaplotypeCallerGvcf_GATK3.make_gvcf": "Boolean? (optional)",
-  "#HaplotypeCallerGvcf_GATK3.HaplotypeCaller.max_alt_alleles": "Int? (optional)",
   "#HaplotypeCallerGvcf_GATK3.HaplotypeCaller.contamination": "Int? (optional)",
   "HaplotypeCallerGvcf_GATK3.MergeVCFs.compression_level": 5,
 
