@@ -1,0 +1,45 @@
+{
+  "##_COMMENT1": "INPUT BAM",
+  "HaplotypeCallerVcf_GATK3.input_bam": "gs://gatk-test-data/wgs_bam/NA12878_20k_b37/NA12878.bam",
+  "HaplotypeCallerVcf_GATK3.input_bam_index": "gs://gatk-test-data/wgs_bam/NA12878_20k_b37/NA12878.bai",
+
+  "##_COMMENT2": "REFERENCE FILES",
+  "HaplotypeCallerVcf_GATK3.ref_dict": "gs://gatk-legacy-bundles/b37/human_g1k_v37_decoy.dict",
+  "HaplotypeCallerVcf_GATK3.ref_fasta": "gs://gatk-legacy-bundles/b37/human_g1k_v37_decoy.fasta",
+  "HaplotypeCallerVcf_GATK3.ref_fasta_index": "gs://gatk-legacy-bundles/b37/human_g1k_v37_decoy.fasta.fai",
+
+  "##_COMMENT3": "INTERVALS",
+  "HaplotypeCallerVcf_GATK3.scattered_calling_intervals_list": "gs://gatk-test-data/intervals/b37_wgs_scattered_calling_intervals.txt",
+  "HaplotypeCallerVcf_GATK3.HaplotypeCaller.interval_padding": 100,
+
+  "##_COMMENT4": "MISC PARAMETERS", 
+  "#HaplotypeCallerVcf_GATK3.make_gvcf": "Boolean? (optional)",
+  "#HaplotypeCallerVcf_GATK3.HaplotypeCaller.contamination": "Int? (optional)",
+  "HaplotypeCallerVcf_GATK3.MergeVCFs.compression_level": 5,
+
+  "##_COMMENT5": "DOCKERS - uncomment the following line and supply a valid docker container to override the default", 
+  "#HaplotypeCallerVcf_GATK3.gitc_docker_override": "String? (optional)",
+  "#HaplotypeCallerVcf_GATK3.picard_docker_override": "String? (optional)",
+  
+  "##_COMMENT6": "PATHS - uncomment the following line and supply a valid path excutable to override the default", 
+  "#HaplotypeCallerVcf_GATK3.picard_path_override": "String? (optional)",
+
+  "##_COMMENT7": "JAVA OPTIONS", 
+  "HaplotypeCallerVcf_GATK3.HaplotypeCaller.java_opt": "-Xms8000m",
+  "HaplotypeCallerVcf_GATK3.MergeVCFs.java_opt": "-Xms2000m",
+
+  "##_COMMENT8": "MEMORY ALLOCATION", 
+  "#HaplotypeCallerVcf_GATK3.HaplotypeCaller.machine_mem_gb": "Int? (optional)",
+  "#HaplotypeCallerVcf_GATK3.MergeVCFs.machine_mem_gb": "Int? (optional)",
+
+  "##_COMMENT9": "DISK SIZE ALLOCATION",
+  "#HaplotypeCallerVcf_GATK3.HaplotypeCaller.disk_space_gb": "Int? (optional)",
+  "#HaplotypeCallerVcf_GATK3.HaplotypeCaller.use_ssd": "Boolean (optional, default = false)",
+  "#HaplotypeCallerVcf_GATK3.MergeVCFs.disk_space_gb": "Int? (optional)",
+  "#HaplotypeCallerVcf_GATK3.MergeVCFs.use_ssd": "Boolean (optional, default = false)",
+
+  "##_COMMENT10": "PREEMPTIBLES",
+  "#HaplotypeCallerVcf_GATK3.HaplotypeCaller.preemptible_attempts": "Int? (optional)",
+  "#HaplotypeCallerVcf_GATK3.MergeVCFs.preemptible_attempts": "Int? (optional)"
+}
+

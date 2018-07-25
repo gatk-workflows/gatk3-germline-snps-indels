@@ -24,7 +24,7 @@
 ## for detailed licensing information pertaining to the included programs.
 
 # WORKFLOW DEFINITION 
-workflow HaplotypeCallerGvcf_GATK3 {
+workflow HaplotypeCallerVcf_GATK3 {
   File input_bam
   File input_bam_index
   File ref_dict
