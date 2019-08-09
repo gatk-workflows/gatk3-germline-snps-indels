@@ -1,5 +1,7 @@
 # gatk3-germline-snps-indels
 
+**GATK3 and this workflow is now longer supported, this repo is intended for legacy purposes.**
+
 ### Purpose : 
 Workflow for germline short variant discovery with GATK3.
 
